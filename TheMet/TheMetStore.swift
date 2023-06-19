@@ -1,0 +1,146 @@
+/// Copyright (c) 2023 Kodeco LLC
+///
+/// Permission is hereby granted, free of charge, to any person obtaining a copy
+/// of this software and associated documentation files (the "Software"), to deal
+/// in the Software without restriction, including without limitation the rights
+/// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+/// copies of the Software, and to permit persons to whom the Software is
+/// furnished to do so, subject to the following conditions:
+///
+/// The above copyright notice and this permission notice shall be included in
+/// all copies or substantial portions of the Software.
+///
+/// Notwithstanding the foregoing, you may not use, copy, modify, merge, publish,
+/// distribute, sublicense, create a derivative work, and/or sell copies of the
+/// Software in any work that is designed, intended, or marketed for pedagogical or
+/// instructional purposes related to programming, coding, application development,
+/// or information technology.  Permission for such use, copying, modification,
+/// merger, publication, distribution, sublicensing, creation of derivative works,
+/// or sale is expressly withheld.
+///
+/// This project and source code may use libraries or frameworks that are
+/// released under various Open-Source licenses. Use of those libraries and
+/// frameworks are governed by their own individual licenses.
+///
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+/// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+/// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+/// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+/// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+/// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+/// THE SOFTWARE.
+
+import Foundation
+
+class TheMetStore: ObservableObject {
+  @Published var objects: [Object] = []
+  let service = TheMetService()
+  let maxIndex: Int
+  
+  init(_ maxIndex: Int = 30) {
+    self.maxIndex = maxIndex
+  }
+  
+  func getResponseStream(for objIDs: [Int]) async throws -> [Object] {
+    do {
+      for (index, objectID) in objIDs.enumerated()
+      where index < maxIndex {
+        if let object = try await service.getObject(from: objectID) {
+          await MainActor.run {
+            objects.append(object)
+            return objects
+          }
+        }
+      }
+    } catch let error {
+      print(error.localizedDescription)
+    }
+    return objects
+  }
+  
+  func fetchObjects(for queryTerm: String) async {
+    let _ = AsyncStream<Object> { continuation in
+      Task {
+        let obIDs = try await service.getObjectIDs(from: queryTerm)
+        let object = try await getResponseStream(for: obIDs!.objectIDs)
+        guard object.count > 1 else {
+          return
+        }
+        continuation.yield(object[object.count - 1])
+      }
+    }
+  }
+  
+}
+
+
+
+/*
+ func fetchObjects(for queryTerm: String) async {
+ let objectStream = AsyncStream<Object> { continuation in
+ Task {
+ let objectIDs = try await service.getObjectIDs(from: queryTerm)
+ let object = try await getResponseStream(for: objectIDs!.objectIDs)
+ var i = object.count - 1
+ guard i > 0 else {
+ continuation.finish()
+ return
+ }
+ continuation.yield(object[i])
+ i -= 1
+ }
+ }
+ }
+ */
+
+/*
+ func getResponseStream(for objectIDs: [Int]) async throws -> [Object] {
+ do {
+ for (index, objectID) in objectIDs.enumerated()  // 2
+ where index < maxIndex {
+ if let object = try await service.getObject(from: objectID) {
+ await MainActor.run {
+ objects.append(object)
+ return objects
+ }
+ }
+ }
+ } catch let error {
+ print(error.localizedDescription)
+ }
+ return []
+ }
+ */
+
+
+/*
+ My garbage
+ 
+ 
+ /* func getResponseStream(for obids: ObjectIDs) async throws {
+  var index = obids.objectIDs.startIndex
+  
+  let stream_pull = AsyncStream<Object> {
+  guard index < self.maxIndex else { return nil }
+  do {
+  if let object = try await self.service.getObject(from: obids.objectIDs[index]) {
+  await MainActor.run {
+  self.objects.append(object)
+  }
+  }
+  index = index + 1
+  } catch {
+  return nil
+  }
+  }
+  }*/
+ func getResponseStream(for obids: ObjectIDs) -> AsyncStream<Object> {
+ var index = obids.objectIDs.startIndex
+ AsyncStream(Object.self) { continuation in
+ while index < self.maxIndex {
+ try await self.service.getObject(from: obids.objectIDs[index])
+ }
+ 
+ }
+ }
+ */
